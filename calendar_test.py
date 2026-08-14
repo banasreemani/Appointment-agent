@@ -1,6 +1,5 @@
 """Verify read-only access to a Google Calendar using a service account."""
 
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,17 +8,11 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from environment_config import required_environment_variable
+
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 EVENT_LIMIT = 5
-
-
-def required_environment_variable(name: str) -> str:
-    """Return a required environment variable or exit with a helpful message."""
-    value = os.environ.get(name)
-    if not value:
-        raise ValueError(f"Missing required environment variable: {name}")
-    return value
 
 
 def main() -> int:
