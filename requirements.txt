@@ -1,5 +1,7 @@
 google-api-python-client
 google-auth
+google-genai
+pydantic>=2,<3
 python-dotenv
 python-telegram-bot>=22.8,<23
 tzdata
