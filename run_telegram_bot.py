@@ -6,8 +6,10 @@ import sys
 from telegram import Update
 from telegram.error import TelegramError
 
-from calendar_availability import build_calendar_service, load_calendar_config
+from calendar_availability import load_calendar_config
+from calendar_booking import build_booking_calendar_service
 from conversation_state import InMemoryConversationStore
+from email_sender import SmtpConfirmationEmailSender, load_email_config
 from environment_config import required_environment_variable
 from intent_parser import build_gemini_client, load_intent_config
 from telegram_bot import build_telegram_application
@@ -32,12 +34,14 @@ def main() -> int:
         intent_config = load_intent_config()
         intent_client = build_gemini_client(intent_config)
         calendar_config = load_calendar_config()
-        calendar_service = build_calendar_service(calendar_config)
+        calendar_service = build_booking_calendar_service(calendar_config)
+        email_sender = SmtpConfirmationEmailSender(load_email_config())
         booking_workflow = TelegramBookingWorkflow(
             state_store=InMemoryConversationStore(),
             calendar_service=calendar_service,
             calendar_id=calendar_config.calendar_id,
             clinic_timezone=calendar_config.timezone,
+            confirmation_email_sender=email_sender.send_confirmation,
         )
         application = build_telegram_application(
             token,

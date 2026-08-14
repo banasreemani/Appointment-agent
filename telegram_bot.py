@@ -31,12 +31,15 @@ REFERENCE_DATETIME_PROVIDER_KEY = "reference_datetime_provider"
 BOOKING_WORKFLOW_KEY = "booking_workflow"
 
 
-def log_incoming_message(update: Update) -> None:
+def log_incoming_message(update: Update, *, redact_text: bool = False) -> None:
     """Log useful identifiers and message text without retaining state."""
     user_id = update.effective_user.id if update.effective_user else "unknown"
     chat_id = update.effective_chat.id if update.effective_chat else "unknown"
     message = update.effective_message
-    text = message.text if message and message.text is not None else "<non-text>"
+    if redact_text:
+        text = "<email response redacted>"
+    else:
+        text = message.text if message and message.text is not None else "<non-text>"
     LOGGER.info(
         "Incoming Telegram message user_id=%s chat_id=%s text=%r",
         user_id,
@@ -58,8 +61,7 @@ async def start_handler(
 async def text_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Extract intent and return an application-owned deterministic response."""
-    log_incoming_message(update)
+    """Process expected state input or route a newly extracted intent."""
     message = update.effective_message
     if not message or message.text is None:
         return
@@ -68,6 +70,19 @@ async def text_handler(
     try:
         if update.effective_user is None:
             raise ValueError("Telegram update has no effective user")
+        user_id = update.effective_user.id
+        workflow = dependencies[BOOKING_WORKFLOW_KEY]
+        if workflow.is_awaiting_email(user_id):
+            log_incoming_message(update, redact_text=True)
+            response = await asyncio.to_thread(
+                workflow.handle_expected_email,
+                user_id,
+                message.text,
+            )
+            await message.reply_text(response)
+            return
+
+        log_incoming_message(update)
         reference_datetime = dependencies[REFERENCE_DATETIME_PROVIDER_KEY]()
         result = await asyncio.to_thread(
             dependencies[INTENT_EXTRACTOR_KEY],
@@ -78,12 +93,12 @@ async def text_handler(
             model=dependencies[INTENT_MODEL_KEY],
         )
         response = await asyncio.to_thread(
-            dependencies[BOOKING_WORKFLOW_KEY].handle_intent,
-            update.effective_user.id,
+            workflow.handle_intent,
+            user_id,
             result,
         )
     except Exception:
-        LOGGER.exception("Unable to extract intent from Telegram message")
+        LOGGER.exception("Unable to process Telegram message")
         response = INTENT_ERROR_RESPONSE
 
     await message.reply_text(response)

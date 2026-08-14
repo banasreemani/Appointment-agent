@@ -11,6 +11,7 @@ class ConversationStatus(str, Enum):
     IDLE = "IDLE"
     AWAITING_SLOT_CONFIRMATION = "AWAITING_SLOT_CONFIRMATION"
     AWAITING_EMAIL = "AWAITING_EMAIL"
+    BOOKED = "BOOKED"
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class ConversationState:
     proposed_start: datetime | None = None
     selected_start: datetime | None = None
     patient_email: str | None = None
+    calendar_event_id: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -48,6 +50,11 @@ class ConversationState:
             and self.selected_start is None
         ):
             raise ValueError("AWAITING_EMAIL requires a selected slot")
+        if self.status == ConversationStatus.BOOKED:
+            if self.selected_start is None:
+                raise ValueError("BOOKED requires a selected slot")
+            if not self.calendar_event_id:
+                raise ValueError("BOOKED requires a Calendar event ID")
 
 
 class InMemoryConversationStore:

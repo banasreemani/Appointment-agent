@@ -58,6 +58,7 @@ class TelegramHandlersTest(unittest.IsolatedAsyncioTestCase):
         update = fake_update("hello")
         extractor = Mock(return_value=IntentResult(intent=Intent.GREETING))
         booking_workflow = Mock()
+        booking_workflow.is_awaiting_email.return_value = False
         booking_workflow.handle_intent.return_value = GREETING_RESPONSE
         context = fake_context(extractor, booking_workflow)
 
@@ -82,6 +83,7 @@ class TelegramHandlersTest(unittest.IsolatedAsyncioTestCase):
     async def test_text_handler_handles_parser_failure(self):
         update = fake_update("unclear request")
         booking_workflow = Mock()
+        booking_workflow.is_awaiting_email.return_value = False
         extractor = Mock(
             side_effect=IntentExtractionError("invalid structured response")
         )
@@ -96,6 +98,27 @@ class TelegramHandlersTest(unittest.IsolatedAsyncioTestCase):
             INTENT_ERROR_RESPONSE
         )
         booking_workflow.handle_intent.assert_not_called()
+
+    async def test_awaiting_email_bypasses_intent_parser(self):
+        update = fake_update("jane@example.com")
+        extractor = Mock()
+        booking_workflow = Mock()
+        booking_workflow.is_awaiting_email.return_value = True
+        booking_workflow.handle_expected_email.return_value = "booking result"
+
+        await text_handler(
+            update,
+            fake_context(extractor, booking_workflow),
+        )
+
+        extractor.assert_not_called()
+        booking_workflow.handle_expected_email.assert_called_once_with(
+            123,
+            "jane@example.com",
+        )
+        update.effective_message.reply_text.assert_awaited_once_with(
+            "booking result"
+        )
 
     async def test_non_text_handler_responds_gracefully(self):
         update = fake_update()
